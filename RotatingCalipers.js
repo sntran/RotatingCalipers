@@ -176,13 +176,9 @@
 
 
     RotatingCalipers.prototype.minAreaEnclosingRectangle = function() {
-      var angleA, angleB, angleC, angleD, area, caliperA, caliperB, caliperC, caliperD, distance, edgeA, edgeB, edgeC, edgeD, getAngle, getEdge, getItem, height, hull, idx, idxA, idxB, idxC, idxD, intersection, minAPair, minAngle, minArea, minBPair, minCPair, minDPair, minHeight, minWidth, point, rotate, rotatedAngle, vertices, width, xmaxP, xminP, ymaxP, yminP, _i, _len;
+      var angles, area, caliper, calipers, distance, getAngle, getEdge, getItem, height, hull, i, idx, intersection, minAngle, minArea, minHeight, minPairs, minWidth, point, rotate, rotatedAngle, vertices, width, xIndices, _i, _len;
       hull = this.convexHull().reverse();
-      xminP = xmaxP = yminP = ymaxP = hull[0];
-      idxA = 0;
-      idxB = 0;
-      idxC = 0;
-      idxD = 0;
+      xIndices = [0, 0, 0, 0];
       getItem = function(i) {
         return hull[i % hull.length];
       };
@@ -242,120 +238,84 @@
       };
       for (idx = _i = 0, _len = hull.length; _i < _len; idx = ++_i) {
         point = hull[idx];
-        if (point[0] < xminP[0]) {
-          xminP = point;
+        if (point[1] < hull[xIndices[0]][1]) {
+          xIndices[0] = idx;
         }
-        if (point[0] > xmaxP[0]) {
-          xmaxP = point;
+        if (point[1] > hull[xIndices[1]][1]) {
+          xIndices[1] = idx;
         }
-        if (point[1] < yminP[1]) {
-          yminP = point;
+        if (point[0] < hull[xIndices[2]][0]) {
+          xIndices[2] = idx;
         }
-        if (point[1] > ymaxP[1]) {
-          ymaxP = point;
-        }
-        if (point[1] < hull[idxA][1]) {
-          idxA = idx;
-        }
-        if (point[1] > hull[idxB][1]) {
-          idxB = idx;
-        }
-        if (point[0] < hull[idxC][0]) {
-          idxC = idx;
-        }
-        if (point[0] > hull[idxD][0]) {
-          idxD = idx;
+        if (point[0] > hull[xIndices[3]][0]) {
+          xIndices[3] = idx;
         }
       }
-      /*console.log "Four extreme points
-                  : (#{xminP[0]}, #{xminP[1]})
-                  , (#{xmaxP[0]}, #{xmaxP[1]})
-                  , (#{yminP[0]}, #{yminP[1]})
-                  , (#{ymaxP[0]}, #{ymaxP[1]})"
-      */
-
-      /*
-                  yminP
-                  /   \
-                 /     \___
-          xminP__|         \
-               \          xmaxP
-                \         /
-                 \       /
-                  \     /
-                   \   /
-                    \ /
-                    ymaxP
-      */
-
       rotatedAngle = 0;
-      minArea = null;
-      minWidth = null;
-      minHeight = null;
-      minAPair = null;
-      minBPair = null;
-      minCPair = null;
-      minDPair = null;
-      caliperA = [1, 0];
-      caliperB = [-1, 0];
-      caliperC = [0, -1];
-      caliperD = [0, 1];
+      minArea = minWidth = minHeight = null;
+      calipers = [[1, 0], [-1, 0], [0, -1], [0, 1]];
       while (rotatedAngle < Math.PI) {
-        edgeA = getEdge(idxA);
-        edgeB = getEdge(idxB);
-        edgeC = getEdge(idxC);
-        edgeD = getEdge(idxD);
-        angleA = getAngle(edgeA, caliperA);
-        angleB = getAngle(edgeB, caliperB);
-        angleC = getAngle(edgeC, caliperC);
-        angleD = getAngle(edgeD, caliperD);
-        area = 0;
-        minAngle = Math.min(angleA, angleB, angleC, angleD);
-        caliperA = rotate(caliperA, minAngle);
-        caliperB = rotate(caliperB, minAngle);
-        caliperC = rotate(caliperC, minAngle);
-        caliperD = rotate(caliperD, minAngle);
-        if (angleA === minAngle) {
-          width = distance(getItem(idxB), getItem(idxA), caliperA);
-          height = distance(getItem(idxD), getItem(idxC), caliperC);
-        } else if (angleB === minAngle) {
-          width = distance(getItem(idxA), getItem(idxB), caliperB);
-          height = distance(getItem(idxD), getItem(idxC), caliperC);
-        } else if (angleC === minAngle) {
-          width = distance(getItem(idxB), getItem(idxA), caliperA);
-          height = distance(getItem(idxD), getItem(idxC), caliperC);
-        } else {
-          width = distance(getItem(idxB), getItem(idxA), caliperA);
-          height = distance(getItem(idxC), getItem(idxD), caliperD);
+        angles = (function() {
+          var _j, _len1, _results;
+          _results = [];
+          for (i = _j = 0, _len1 = xIndices.length; _j < _len1; i = ++_j) {
+            idx = xIndices[i];
+            _results.push(getAngle(getEdge(idx), calipers[i]));
+          }
+          return _results;
+        })();
+        minAngle = Math.min.apply(Math, angles);
+        calipers = (function() {
+          var _j, _len1, _results;
+          _results = [];
+          for (_j = 0, _len1 = calipers.length; _j < _len1; _j++) {
+            caliper = calipers[_j];
+            _results.push(rotate(caliper, minAngle));
+          }
+          return _results;
+        })();
+        idx = angles.indexOf(minAngle);
+        switch (idx) {
+          case 0:
+          case 2:
+            width = distance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0]);
+            height = distance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2]);
+            break;
+          case 1:
+            width = distance(getItem(xIndices[0]), getItem(xIndices[1]), calipers[1]);
+            height = distance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2]);
+            break;
+          case 3:
+            width = distance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0]);
+            height = distance(getItem(xIndices[2]), getItem(xIndices[3]), calipers[3]);
         }
         rotatedAngle += minAngle;
         area = width * height;
         if (!(minArea != null) || area < minArea) {
           minArea = area;
-          minAPair = [getItem(idxA), caliperA];
-          minBPair = [getItem(idxB), caliperB];
-          minCPair = [getItem(idxC), caliperC];
-          minDPair = [getItem(idxD), caliperD];
+          minPairs = (function() {
+            var _j, _results;
+            _results = [];
+            for (i = _j = 0; _j < 4; i = ++_j) {
+              _results.push([getItem(xIndices[i]), calipers[i]]);
+            }
+            return _results;
+          })();
           minWidth = width;
           minHeight = height;
         }
-        if (angleA === minAngle) {
-          idxA++;
-        }
-        if (angleB === minAngle) {
-          idxB++;
-        }
-        if (angleC === minAngle) {
-          idxC++;
-        }
-        if (angleD === minAngle) {
-          idxD++;
-        }
+        xIndices[idx]++;
         if (isNaN(rotatedAngle)) {
           break;
         }
       }
-      return vertices = [intersection(minAPair[0], minAPair[1], minDPair[0], minDPair[1]), intersection(minDPair[0], minDPair[1], minBPair[0], minBPair[1]), intersection(minBPair[0], minBPair[1], minCPair[0], minCPair[1]), intersection(minCPair[0], minCPair[1], minAPair[0], minAPair[1])];
+      vertices = [intersection(minPairs[0][0], minPairs[0][1], minPairs[3][0], minPairs[3][1]), intersection(minPairs[3][0], minPairs[3][1], minPairs[1][0], minPairs[1][1]), intersection(minPairs[1][0], minPairs[1][1], minPairs[2][0], minPairs[2][1]), intersection(minPairs[2][0], minPairs[2][1], minPairs[0][0], minPairs[0][1])];
+      return {
+        vertices: vertices,
+        width: minWidth,
+        height: minHeight,
+        area: minArea
+      };
     };
 
     return RotatingCalipers;

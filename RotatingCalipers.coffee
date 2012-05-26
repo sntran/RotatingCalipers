@@ -128,12 +128,8 @@ class window.RotatingCalipers
   minAreaEnclosingRectangle: ->
     hull = @convexHull().reverse()
 
-    xminP = xmaxP = yminP = ymaxP = hull[0]
-    
-    idxA = 0 # index of vertex with min Y
-    idxB = 0 # index of vertex with max Y
-    idxC = 0 # index of vertex with min X
-    idxD = 0 # index of vertex with max X
+    # index of vertex with minY, maxY, minX, maxX
+    xIndices = [0, 0, 0 ,0]
 
     getItem = (i) -> hull[i % hull.length]
 
@@ -152,7 +148,7 @@ class window.RotatingCalipers
       v2 = [];
       v2[0] = v[0]*Math.cos(r) - v[1]*Math.sin(r);
       v2[1] = v[0]*Math.sin(r) + v[1]*Math.cos(r);
-      return v2;
+      return v2
 
     distance = (p, t, v) ->
       return Math.abs(p[0] - t[0]) if v[0] is 0
@@ -187,109 +183,58 @@ class window.RotatingCalipers
       return p
 
     for point, idx in hull
-
-      xminP = point if point[0] < xminP[0]
-      xmaxP = point if point[0] > xmaxP[0]
-      yminP = point if point[1] < yminP[1]
-      ymaxP = point if point[1] > ymaxP[1]
-
-      idxA = idx if point[1] < hull[idxA][1]
-      idxB = idx if point[1] > hull[idxB][1]
-      idxC = idx if point[0] < hull[idxC][0]
-      idxD = idx if point[0] > hull[idxD][0]
-
-    ###console.log "Four extreme points
-                : (#{xminP[0]}, #{xminP[1]})
-                , (#{xmaxP[0]}, #{xmaxP[1]})
-                , (#{yminP[0]}, #{yminP[1]})
-                , (#{ymaxP[0]}, #{ymaxP[1]})"###
-
-    ###
-            yminP
-            /   \
-           /     \___
-    xminP__|         \
-         \          xmaxP
-          \         /
-           \       /
-            \     /
-             \   /
-              \ /
-              ymaxP
-    ###
+      xIndices[0] = idx if point[1] < hull[xIndices[0]][1]
+      xIndices[1] = idx if point[1] > hull[xIndices[1]][1]
+      xIndices[2] = idx if point[0] < hull[xIndices[2]][0]
+      xIndices[3] = idx if point[0] > hull[xIndices[3]][0]
 
     rotatedAngle = 0
-    minArea = null
-    minWidth = null
-    minHeight = null
-    minAPair = null
-    minBPair = null
-    minCPair = null
-    minDPair = null
+    minArea = minWidth = minHeight = null
 
-    caliperA = [1, 0]   # Caliper A points along the positive x-axis
-    caliperB = [-1, 0]  # Caliper B points along the negative x-axis
-    caliperC = [0, -1]  # Caliper C points along the negative y-axis
-    caliperD = [0, 1]   # Caliper D points along the positive y-axis
+    # Calipers pointing along +x, -x, -y, +y
+    calipers = [ 
+      [1, 0], [-1, 0], [0, -1], [0, 1]
+    ]
 
     while rotatedAngle < Math.PI
+      angles = (getAngle(getEdge(idx), calipers[i]) for idx, i in xIndices)
+      minAngle = Math.min angles...
+      calipers = (rotate caliper, minAngle for caliper in calipers)
 
-      edgeA = getEdge(idxA)
-      edgeB = getEdge(idxB)
-      edgeC = getEdge(idxC)
-      edgeD = getEdge(idxD)
+      idx = angles.indexOf minAngle
 
-      angleA = getAngle(edgeA, caliperA)
-      angleB = getAngle(edgeB, caliperB)
-      angleC = getAngle(edgeC, caliperC)
-      angleD = getAngle(edgeD, caliperD)
-      area = 0
-
-      minAngle = Math.min(angleA, angleB, angleC, angleD)
-
-      caliperA = rotate(caliperA, minAngle)
-      caliperB = rotate(caliperB, minAngle)
-      caliperC = rotate(caliperC, minAngle)
-      caliperD = rotate(caliperD, minAngle)
-
-      if angleA is minAngle
-        width = distance(getItem(idxB), getItem(idxA), caliperA)
-        height = distance(getItem(idxD), getItem(idxC), caliperC)
-      else if angleB is minAngle
-        width = distance(getItem(idxA), getItem(idxB), caliperB);
-        height = distance(getItem(idxD), getItem(idxC), caliperC);
-      else if (angleC == minAngle)
-        width = distance(getItem(idxB), getItem(idxA), caliperA);
-        height = distance(getItem(idxD), getItem(idxC), caliperC);
-      else
-        width = distance(getItem(idxB), getItem(idxA), caliperA);
-        height = distance(getItem(idxC), getItem(idxD), caliperD);
+      switch idx
+        when 0, 2
+          width = distance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0])
+          height = distance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2])
+        when 1
+          width = distance(getItem(xIndices[0]), getItem(xIndices[1]), calipers[1])
+          height = distance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2])
+        when 3
+          width = distance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0])
+          height = distance(getItem(xIndices[2]), getItem(xIndices[3]), calipers[3])
 
       rotatedAngle += minAngle
       area = width * height
 
       if not minArea? or area < minArea
         minArea = area
-        minAPair = [getItem(idxA), caliperA]
-        minBPair = [getItem(idxB), caliperB]
-        minCPair = [getItem(idxC), caliperC]
-        minDPair = [getItem(idxD), caliperD]
+        minPairs = ([getItem(xIndices[i]), calipers[i]] for i in [0...4])
         minWidth = width
         minHeight = height
 
-      idxA++ if angleA is minAngle
-      idxB++ if angleB is minAngle
-      idxC++ if angleC is minAngle
-      idxD++ if angleD is minAngle
+      xIndices[idx]++
 
       break if isNaN(rotatedAngle)
 
     vertices = [
-      intersection(minAPair[0], minAPair[1], minDPair[0], minDPair[1]),
-      intersection(minDPair[0], minDPair[1], minBPair[0], minBPair[1]),
-      intersection(minBPair[0], minBPair[1], minCPair[0], minCPair[1]),
-      intersection(minCPair[0], minCPair[1], minAPair[0], minAPair[1])
+      intersection(minPairs[0][0], minPairs[0][1], minPairs[3][0], minPairs[3][1]),
+      intersection(minPairs[3][0], minPairs[3][1], minPairs[1][0], minPairs[1][1]),
+      intersection(minPairs[1][0], minPairs[1][1], minPairs[2][0], minPairs[2][1]),
+      intersection(minPairs[2][0], minPairs[2][1], minPairs[0][0], minPairs[0][1])
     ]
+
+    {vertices: vertices, width: minWidth, height: minHeight, area: minArea}
     
 
 
