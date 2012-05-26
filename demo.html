@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Demo for Rotating Calipers</title>
+	 
+	<meta name="viewport" content="width=device-width, initial-scale=1"> 
+
+	<script src="js/jquery.min.js"></script>
+	<script src="RotatingCalipers.js"></script>
+</head>
+<body>
+	<canvas id="canvas" width="800" height="600"></canvas>
+
+<script>
+window.onload = function() {
+
+	var canvas = document.getElementById('canvas');
+	var ctx = canvas.getContext('2d');
+
+	var points = [];
+
+	var setPoint = function(e) {
+		var x = e.clientX - canvas.offsetLeft;
+		var y = e.clientY - canvas.offsetTop;
+
+		points.push([x, y]);
+		draw();
+	}
+
+	canvas.addEventListener("click", setPoint, false);
+
+	var draw = function () {
+		//points = [[283, 252], [421, 182], [399, 328]]
+		if (points.length === 2) {
+			ctx.beginPath();
+    	ctx.moveTo(points[0][0], points[0][1]);
+    	ctx.lineTo(points[1][0], points[1][1]);
+    	ctx.closePath();
+    	ctx.stroke();
+		} else if (points.length > 2) {
+			var solver = new RotatingCalipers( points )
+			var hull = solver.convexHull();
+			var maer = solver.minEnclosingAreaRectangle();
+
+			ctx.clearRect(0,0, canvas.width, canvas.height);
+
+			ctx.strokeStyle = "black";
+			ctx.beginPath();
+	    ctx.moveTo(hull[0][0], hull[0][1]);
+
+	    for (var i = 1; i < hull.length; i++) {
+	    	ctx.lineTo(hull[i][0], hull[i][1])
+	    };
+	    ctx.closePath();
+	    ctx.stroke();
+
+	    ctx.strokeStyle = "blue";
+			ctx.beginPath();
+	    ctx.moveTo(maer[0][0], maer[0][1]);
+
+	    for (var i = 1; i < maer.length; i++) {
+	    	ctx.lineTo(maer[i][0], maer[i][1])
+	    };
+	    ctx.closePath();
+	    ctx.stroke();
+
+			for (var i = 0; i < points.length; i++) {
+				ctx.arc(points[i][0], points[i][1], 5, 0, 2 * Math.PI, false);
+			};
+		}
+	}
+
+}
+</script>
+</body>
+</html>
