@@ -93,7 +93,7 @@ class window.RotatingCalipers
     _inputVertices = verticesOrFirst
 
   ###
-  #RotatingCalipers.convexHull
+  RotatingCalipers.convexHull
   @sign Array convexHull(void)
   @return an Array of the points forming the minimal convex set containing all
           input vertices.
@@ -113,15 +113,102 @@ class window.RotatingCalipers
       .concat _quickHull(_inputVertices, extremeX.max, extremeX.min)
 
   ###
-  1. Compute all four extreme points for the polygon, and call them xminP, xmaxP, yminP ymaxP.
+  RotatingCalipers.angleBetweenVectors
+  @sign Number angleBetweenVectors(Array vector1, Array vector2)
+  @param vector1 - the first vector
+  @param vector2 - the second vector
+  @return the angle between them, in radian
+  Calculate the angle between two vectors.
+  ###
+  angleBetweenVectors: (vector1, vector2) ->
+    dotProduct = vector1[0]*vector2[0] + vector1[1]*vector2[1]
+    magnitude1 = Math.sqrt(vector1[0]*vector1[0] + vector1[1]*vector1[1])
+    magnitude2 = Math.sqrt(vector2[0]*vector2[0] + vector2[1]*vector2[1])
+    return Math.acos(dotProduct/(magnitude1*magnitude2))
+
+  ###
+  RotatingCalipers.rotateVector
+  @sign Array rotateVector(Array vector, Number angle)
+  @param vector - the vector to rotate
+  @param angle - the angle to rotate to, in radian
+  @return the rotated vector as an array
+  Rotate a vector to an angle and return the rotated vector.
+  ###
+  rotateVector: (vector, angle) ->
+    rotated = [];
+    rotated[0] = vector[0]*Math.cos(angle) - vector[1]*Math.sin(angle);
+    rotated[1] = vector[0]*Math.sin(angle) + vector[1]*Math.cos(angle);
+    return rotated
+
+  ###
+  RotatingCalipers.shortestDistance
+  @sign Number shortestDistance(Array p, Array t, Array v)
+  @param p - the point to which the shortest distance is calculated
+  @param t - the point through which the vector extends
+  @param v - the vector extended to t to form a line
+  Calculate the shortest distance from point p to the line formed by extending
+  the vector v through point t
+  ###
+  shortestDistance: (p, t, v) ->
+    return Math.abs(p[0] - t[0]) if v[0] is 0
+
+    a = v[1] / v[0]
+    c = t[1] - a*t[0]
+    return Math.abs(p[1] - c - a*p[0]) / Math.sqrt(a*a + 1)
+
+  ###
+  RotatingCalipers.intersection
+  @sign Array intersection(Array point1, Array vector1, Array point2, Array vector2)
+  @param point1 - the point through which the first vector passing
+  @param vector1 - the vector passing through point1
+  @param point2 - the point through which the second vector passing
+  @param vector2 - the vector passing through point2
+  @return the intersecting point between two vectors
+  Finds the intersection of the lines formed by vector1 passing through
+  point1 and vector2 passing through point2
+  ###
+  intersection: (point1, vector1, point2, vector2) ->
+    return false if vector1[0] is 0 and vector2[0] is 0
+
+    if vector1[0] isnt 0
+      m1 = vector1[1]/vector1[0];
+      b1 = point1[1] - m1*point1[0];
+
+    if vector2[0] isnt 0
+      m2 = vector2[1]/vector2[0];
+      b2 = point2[1] - m2*point2[0];
+
+    return [point1[0], m2*point1[0] + b2] if vector1[0] is 0
+    return [point2[0], m1*point2[0] + b1] if vector2[0] is 0
+    return false if m1 is m2
+
+    point = [];
+    point[0] = (b2 - b1)/(m1 - m2)
+    point[1] = m1*point[0] + b1
+    return point
+
+  ###
+  RotatingCalipers.minAreaEnclosingRectangle
+  @sign Object minAreaEnclosingRectangle(void)
+  @return an object containing the vertices, width, height and area of the
+  enclosing rectangle that has the minimum area.
+  Calculate the mimimum area enclosing retangle for a convex polygon with n
+  vertices given in clockwise order.
+  The algorithm is based on Godfried Toussaint's 1983 whitepaper on "Solving
+  geometric problems with the rotating calipers" and the Wikipedia page for 
+  "Rotating Calipers". More info at http://cgm.cs.mcgill.ca/~orm/maer.html.
+  Ported from Geoffrey Cox's PHP port (github.com/brainbook/BbsRotatingCalipers).
+  Adapted for CoffeeScript by Son Tran.
+  The general guidelines for the algorithm is as followed:
+  1. Compute all four extreme points, and call them xminP, xmaxP, yminP ymaxP.
   2. Construct four lines of support for P through all four points. 
-      These determine two sets of "calipers".
-  3. If one (or more) lines coincide with an edge, then compute the area of the rectangle 
-      determined by the four lines, and keep as minimum. Otherwise, consider the current 
-      minimum area to be infinite.
-  4. Rotate the lines clockwise until one of them coincides with an edge of its polygon.
-  5. Compute the area of the new rectangle, and compare it to the current minimum area. 
-      Update the minimum if necessary, keeping track of the rectangle determining the minimum. 
+    These determine two sets of "calipers".
+  3. If one (or more) lines coincide with an edge, then compute the area of the
+    rectangle determined by the four lines, and keep as minimum. Otherwise, 
+    consider the current minimum area to be infinite.
+  4. Rotate the lines clockwise until one of them coincides with an edge.
+  5. Compute area of new rectangle, and compare it to the current minimum area. 
+    Update the minimum if necessary, keeping track of the rectangle determining the minimum. 
   6. Repeat steps 4 and 5, until the lines have been rotated an angle greater than 90 degrees.
   7. Output the minimum area enclosing rectangle.
   ###
@@ -131,57 +218,18 @@ class window.RotatingCalipers
     # index of vertex with minY, maxY, minX, maxX
     xIndices = [0, 0, 0 ,0]
 
-    getItem = (i) -> hull[i % hull.length]
+    getItem = (idxOfExtremePointInHull) -> 
+      hull[idxOfExtremePointInHull % hull.length]
 
     # Helper to return the next adjacent edge from an extreme point
-    getEdge = (i) ->
-      pointA = getItem(i+1)
-      pointB = getItem(i)
-      [pointA[0]-pointB[0], pointA[1]-pointB[1]]
+    getEdge = (idxOfExtremePointInHull) ->
+      pointA = getItem(idxOfExtremePointInHull+1)
+      pointB = getItem(idxOfExtremePointInHull)
+      [pointA[0]-pointB[0], pointA[1]-pointB[1]]    
 
-    getAngle = (v1, v2) ->
-      n = v1[0]*v2[0] + v1[1]*v2[1];
-      d = Math.sqrt(v1[0]*v1[0] + v1[1]*v1[1])*Math.sqrt(v2[0]*v2[0] + v2[1]*v2[1]);
-      return Math.acos(n/d);
-
-    rotate = (v, r) ->
-      v2 = [];
-      v2[0] = v[0]*Math.cos(r) - v[1]*Math.sin(r);
-      v2[1] = v[0]*Math.sin(r) + v[1]*Math.cos(r);
-      return v2
-
-    distance = (p, t, v) ->
-      return Math.abs(p[0] - t[0]) if v[0] is 0
-
-      a = v[1] / v[0]
-      c = t[1] - a*t[0]
-      return Math.abs(p[1] - c - a*p[0]) / Math.sqrt(a*a + 1)
-
-    intersection = (p1, v1, p2, v2) ->
-      if (v1[0] == 0 && v2[0] == 0)
-        return false;
-
-      if (v1[0] != 0)
-        m1 = v1[1]/v1[0];
-        b1 = p1[1] - m1*p1[0];
-
-      if (v2[0] != 0)
-        m2 = v2[1]/v2[0];
-        b2 = p2[1] - m2*p2[0];
-
-      if (v1[0] == 0)
-        return [p1[0], m2*p1[0] + b2];
-      else if (v2[0] == 0)
-        return [p2[0], m1*p2[0] + b1];
-
-      if (m1 == m2)
-        return false;
-
-      p = [];
-      p[0] = (b2 - b1)/(m1 - m2);
-      p[1] = m1*p[0] + b1;
-      return p
-
+    ###
+    Compute all four extreme points for the polygon, store their indices.
+    ###
     for point, idx in hull
       xIndices[0] = idx if point[1] < hull[xIndices[0]][1]
       xIndices[1] = idx if point[1] > hull[xIndices[1]][1]
@@ -196,42 +244,66 @@ class window.RotatingCalipers
       [1, 0], [-1, 0], [0, -1], [0, 1]
     ]
 
+    ###
+    Repeat computing, until the lines have been rotated an angle greater than 90 degrees.
+    ###
     while rotatedAngle < Math.PI
-      angles = (getAngle(getEdge(idx), calipers[i]) for idx, i in xIndices)
+      ###
+      Calculate the angle between the edge next adjacent to each extreme point
+      and its caliper. The minimum of those angles indicates the angle needed
+      to rotate all calipers to coincide with the nearest edge.
+      ###
+      angles = (@angleBetweenVectors(getEdge(idx), calipers[i]) for idx, i in xIndices)
       minAngle = Math.min angles...
-      calipers = (rotate caliper, minAngle for caliper in calipers)
+      ###
+      Then rotate all calipers to that minimum angle.
+      ###
+      calipers = (@rotateVector caliper, minAngle for caliper in calipers)
 
       idx = angles.indexOf minAngle
 
+      ### 
+      Compute the area of the new rectangle
+      ###
       switch idx
         when 0, 2
-          width = distance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0])
-          height = distance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2])
+          width = @shortestDistance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0])
+          height = @shortestDistance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2])
         when 1
-          width = distance(getItem(xIndices[0]), getItem(xIndices[1]), calipers[1])
-          height = distance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2])
+          width = @shortestDistance(getItem(xIndices[0]), getItem(xIndices[1]), calipers[1])
+          height = @shortestDistance(getItem(xIndices[3]), getItem(xIndices[2]), calipers[2])
         when 3
-          width = distance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0])
-          height = distance(getItem(xIndices[2]), getItem(xIndices[3]), calipers[3])
+          width = @shortestDistance(getItem(xIndices[1]), getItem(xIndices[0]), calipers[0])
+          height = @shortestDistance(getItem(xIndices[2]), getItem(xIndices[3]), calipers[3])
 
       rotatedAngle += minAngle
       area = width * height
 
+      ###
+      Compare the new area to the current minArea.
+      ###
       if not minArea? or area < minArea
+        ###
+        Update the minArea, keeping track of the rectangle determining the minimum.
+        ###
         minArea = area
         minPairs = ([getItem(xIndices[i]), calipers[i]] for i in [0...4])
         minWidth = width
         minHeight = height
 
+      ###
+      Update the index of the extreme point with the minimum angle to the next point
+      of the polygon.
+      ###
       xIndices[idx]++
 
-      break if isNaN(rotatedAngle)
+      #break if isNaN(rotatedAngle)
 
     vertices = [
-      intersection(minPairs[0][0], minPairs[0][1], minPairs[3][0], minPairs[3][1]),
-      intersection(minPairs[3][0], minPairs[3][1], minPairs[1][0], minPairs[1][1]),
-      intersection(minPairs[1][0], minPairs[1][1], minPairs[2][0], minPairs[2][1]),
-      intersection(minPairs[2][0], minPairs[2][1], minPairs[0][0], minPairs[0][1])
+      @intersection(minPairs[0][0], minPairs[0][1], minPairs[3][0], minPairs[3][1])
+      @intersection(minPairs[3][0], minPairs[3][1], minPairs[1][0], minPairs[1][1])
+      @intersection(minPairs[1][0], minPairs[1][1], minPairs[2][0], minPairs[2][1])
+      @intersection(minPairs[2][0], minPairs[2][1], minPairs[0][0], minPairs[0][1])
     ]
 
     {vertices: vertices, width: minWidth, height: minHeight, area: minArea}
